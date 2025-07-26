@@ -1,0 +1,464 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          UserRole  @default(BUYER)
+  status        UserStatus @default(ACTIVE)
+  companyName   String?
+  businessType  String?
+  phone         String?
+  address       String?
+  city          String?
+  country       String?
+  postalCode    String?
+  taxId         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  vendor        Vendor?
+  orders        Order[]
+  purchaseOrders PurchaseOrder[]
+  invoices      Invoice[]
+  notifications Notification[]
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Vendor {
+  id               String        @id @default(cuid())
+  userId           String        @unique
+  businessName     String
+  description      String?
+  website          String?
+  verified         Boolean       @default(false)
+  rating           Float         @default(0)
+  totalReviews     Int           @default(0)
+  minOrderValue    Float?
+  paymentTerms     String?
+  shippingPolicy   String?
+  returnPolicy     String?
+  leadTime         String?
+  certifications   Json?
+  specializations  Json?
+  establishedYear  Int?
+  employeeCount    String?
+  annualRevenue    String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products         Product[]
+  categories       Category[]
+  reviews          VendorReview[]
+  inquiries        Inquiry[]
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  image       String?
+  parentId    String?
+  level       Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  products    Product[]
+  vendors     Vendor[]
+}
+
+model Product {
+  id              String          @id @default(cuid())
+  vendorId        String
+  categoryId      String
+  name            String
+  slug            String          @unique
+  description     String?
+  shortDescription String?
+  sku             String          @unique
+  images          Json?
+  specifications  Json?
+  minOrderQty     Int             @default(1)
+  price           Float
+  currency        String          @default("USD")
+  priceBreaks     Json?
+  leadTime        String?
+  stock           Int             @default(0)
+  status          ProductStatus   @default(DRAFT)
+  tags            Json?
+  weight          Float?
+  dimensions      Json?
+  manufacturerId  String?
+  brandName       String?
+  warranty        String?
+  certifications  Json?
+  customizable    Boolean         @default(false)
+  featured        Boolean         @default(false)
+  views           Int             @default(0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  vendor          Vendor          @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  category        Category        @relation(fields: [categoryId], references: [id])
+  orderItems      OrderItem[]
+  inquiries       Inquiry[]
+  reviews         ProductReview[]
+  inventoryItems  InventoryItem[]
+}
+
+model Order {
+  id              String        @id @default(cuid())
+  orderNumber     String        @unique
+  userId          String
+  status          OrderStatus   @default(PENDING)
+  totalAmount     Float
+  currency        String        @default("USD")
+  shippingAddress Json
+  billingAddress  Json
+  paymentMethod   String?
+  paymentStatus   PaymentStatus @default(PENDING)
+  shippingMethod  String?
+  shippingCost    Float         @default(0)
+  taxAmount       Float         @default(0)
+  discountAmount  Float         @default(0)
+  notes           String?
+  expectedDelivery DateTime?
+  deliveredAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user            User          @relation(fields: [userId], references: [id])
+  items           OrderItem[]
+  invoices        Invoice[]
+  notifications   Notification[]
+}
+
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  productId   String
+  quantity    Int
+  unitPrice   Float
+  totalPrice  Float
+  specifications Json?
+
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product @relation(fields: [productId], references: [id])
+}
+
+model PurchaseOrder {
+  id              String              @id @default(cuid())
+  poNumber        String              @unique
+  userId          String
+  vendorId        String?
+  status          PurchaseOrderStatus @default(DRAFT)
+  totalAmount     Float
+  currency        String              @default("USD")
+  requestedBy     String
+  approvedBy      String?
+  approvedAt      DateTime?
+  deliveryDate    DateTime?
+  terms           String?
+  notes           String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  user            User                @relation(fields: [userId], references: [id])
+  items           PurchaseOrderItem[]
+  invoices        Invoice[]
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  productName     String
+  description     String?
+  quantity        Int
+  unitPrice       Float
+  totalPrice      Float
+  specifications  Json?
+
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  invoiceNumber   String        @unique
+  userId          String
+  orderId         String?
+  purchaseOrderId String?
+  status          InvoiceStatus @default(DRAFT)
+  issueDate       DateTime      @default(now())
+  dueDate         DateTime
+  paidDate        DateTime?
+  subtotal        Float
+  taxAmount       Float
+  totalAmount     Float
+  currency        String        @default("USD")
+  paymentTerms    String?
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user            User           @relation(fields: [userId], references: [id])
+  order           Order?         @relation(fields: [orderId], references: [id])
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  items           InvoiceItem[]
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Int
+  unitPrice   Float
+  totalPrice  Float
+
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model InventoryItem {
+  id              String            @id @default(cuid())
+  productId       String
+  warehouseId     String?
+  quantity        Int
+  reservedQty     Int               @default(0)
+  reorderLevel    Int               @default(10)
+  reorderQty      Int               @default(50)
+  lastRestocked   DateTime?
+  cost            Float?
+  location        String?
+  status          InventoryStatus   @default(AVAILABLE)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  product         Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  movements       InventoryMovement[]
+}
+
+model InventoryMovement {
+  id              String              @id @default(cuid())
+  inventoryItemId String
+  type            InventoryMovementType
+  quantity        Int
+  reference       String?
+  notes           String?
+  createdAt       DateTime            @default(now())
+
+  inventoryItem   InventoryItem       @relation(fields: [inventoryItemId], references: [id])
+}
+
+model Inquiry {
+  id          String        @id @default(cuid())
+  productId   String
+  vendorId    String
+  buyerEmail  String
+  buyerName   String
+  company     String?
+  phone       String?
+  message     String
+  quantity    Int?
+  urgency     InquiryUrgency @default(MEDIUM)
+  status      InquiryStatus @default(PENDING)
+  response    String?
+  respondedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  product     Product       @relation(fields: [productId], references: [id])
+  vendor      Vendor        @relation(fields: [vendorId], references: [id])
+}
+
+model VendorReview {
+  id          String   @id @default(cuid())
+  vendorId    String
+  reviewerName String
+  reviewerEmail String
+  rating      Int
+  title       String?
+  comment     String?
+  verified    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+}
+
+model ProductReview {
+  id            String   @id @default(cuid())
+  productId     String
+  reviewerName  String
+  reviewerEmail String
+  rating        Int
+  title         String?
+  comment       String?
+  verified      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id          String             @id @default(cuid())
+  userId      String
+  orderId     String?
+  type        NotificationType
+  title       String
+  message     String
+  read        Boolean            @default(false)
+  actionUrl   String?
+  createdAt   DateTime           @default(now())
+
+  user        User               @relation(fields: [userId], references: [id])
+  order       Order?             @relation(fields: [orderId], references: [id])
+}
+
+// Enums
+enum UserRole {
+  BUYER
+  SELLER
+  ADMIN
+  VENDOR_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  OUT_OF_STOCK
+  DISCONTINUED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIAL
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  FULFILLED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum InventoryStatus {
+  AVAILABLE
+  RESERVED
+  OUT_OF_STOCK
+  DAMAGED
+  OBSOLETE
+}
+
+enum InventoryMovementType {
+  INBOUND
+  OUTBOUND
+  ADJUSTMENT
+  TRANSFER
+  RETURN
+}
+
+enum InquiryStatus {
+  PENDING
+  RESPONDED
+  CLOSED
+  CONVERTED
+}
+
+enum InquiryUrgency {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum NotificationType {
+  ORDER_UPDATE
+  PAYMENT_REMINDER
+  INVENTORY_ALERT
+  NEW_INQUIRY
+  SYSTEM_UPDATE
+  PROMOTION
+}
